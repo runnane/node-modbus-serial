@@ -1,10 +1,10 @@
-# modbus-serial
+# modbus-serial-dupline
+
+**Warning - this is a dupline version of modbus-serial. Not quality checked, so please do not use in production.**
+
+----
 
 A pure JavaScript implemetation of MODBUS-RTU (Serial and TCP) for NodeJS.
-
-[![NPM download](https://img.shields.io/npm/dm/modbus-serial.svg)](http://www.npm-stats.com/~packages/modbus-serial)
-[![NPM version](https://badge.fury.io/js/modbus-serial.png)](http://badge.fury.io/js/modbus-serial)
-![Build Status](https://github.com/yaacov/node-modbus-serial/workflows/ci/badge.svg)
 
 
 Modbus is a serial communications protocol, first used in 1979.
