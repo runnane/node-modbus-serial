@@ -24,6 +24,7 @@ describe("Promise", function() {
             expect(modbusRTU.readHoldingRegisters(address, arg)).to.be.instanceOf(Promise);
             expect(modbusRTU.readInputRegisters(address, arg)).to.be.instanceOf(Promise);
             expect(modbusRTU.writeCoil(address, value)).to.be.instanceOf(Promise);
+            expect(modbusRTU.writeCoilDupline(address, value)).to.be.instanceOf(Promise);
             expect(modbusRTU.writeRegister(address, value)).to.be.instanceOf(Promise);
             expect(modbusRTU.writeRegisters(address, [value])).to.be.instanceOf(Promise);
             expect(modbusRTU.readDeviceIdentification(deviceIdCode, objectId)).to.be.instanceOf(Promise);

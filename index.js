@@ -807,8 +807,6 @@ ModbusRTU.prototype.writeFC5Dupline = function(address, dataAddress, data, next)
     buf.writeUInt16BE(dataAddress, 2);
     buf.writeUInt16BE(data, 4);
 
-    console.log(buf);
-
     // add crc bytes to buffer
     buf.writeUInt16LE(crc16(buf.slice(0, -2)), codeLength);
 

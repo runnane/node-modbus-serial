@@ -9,7 +9,7 @@ export class ModbusRTU {
   writeFC3(address: number, dataAddress: number, length: number, next: NodeStyleCallback<ReadRegisterResult>): void;
   writeFC4(address: number, dataAddress: number, length: number, next: NodeStyleCallback<ReadRegisterResult>): void;
   writeFC5(address: number, dataAddress: number, state: boolean, next: NodeStyleCallback<WriteCoilResult>): void;
-  writeFC5Dupline(address: number, dataAddress: number, value: number, next: NodeStyleCallback<WriteCoilResult>): void;
+  writeFC5Dupline(address: number, dataAddress: number, value: number, next: NodeStyleCallback<WriteCoilDuplineResult>): void;
   writeFC6(address: number, dataAddress: number, value: number, next: NodeStyleCallback<WriteRegisterResult>): void;
 
   writeFC15(address: number, dataAddress: number, states: Array<boolean>, next: NodeStyleCallback<WriteMultipleResult>): void;
@@ -48,7 +48,7 @@ export class ModbusRTU {
   readHoldingRegisters(dataAddress: number, length: number): Promise<ReadRegisterResult>;
   readInputRegisters(dataAddress: number, length: number): Promise<ReadRegisterResult>;
   writeCoil(dataAddress: number, state: boolean): Promise<WriteCoilResult>;
-  writeCoilDupline(dataAddress: number, value: number): Promise<WriteCoilResult>;
+  writeCoilDupline(dataAddress: number, value: number): Promise<WriteCoilDuplineResult>;
   writeCoils(dataAddress: number, states: Array<boolean>): Promise<WriteMultipleResult>;
   writeRegister(dataAddress: number, value: number): Promise<WriteRegisterResult>;
   writeRegisters(dataAddress: number, values: Array<number> | Buffer): Promise<WriteMultipleResult>; // 16
@@ -73,6 +73,9 @@ export interface ReadRegisterResult {
 export interface WriteCoilResult {
   address: number;
   state: boolean;
+}
+export interface WriteCoilDuplineResult {
+  address: number;
 }
 
 export interface WriteRegisterResult {
