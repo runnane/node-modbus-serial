@@ -362,6 +362,9 @@ function _onReceive(data) {
     var address = data.readUInt8(0);
     var code = data.readUInt8(1);
 
+    if(code == 5){
+        console.log(data);
+    }
     /* check for modbus exception
      */
     if (data.length >= 5 &&
