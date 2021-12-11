@@ -378,7 +378,7 @@ function _onReceive(data) {
     /* check message length
      * if we do not expect this data
      * raise an error
-     */commi
+     */
 
     //if (!transaction.lengthUnknown && data.length !== transaction.nextLength) {
     //    error = "Data length error, expected " +
