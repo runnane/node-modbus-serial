@@ -38,6 +38,10 @@ interface IServiceVector {
         ((addr: number, value: number, unitID: number, cb: FCallback) => void) |
         ((addr: number, value: number, unitID: number) => Promise<void>) |
         ((addr: number, value: number, unitID: number) => void)
+    setCoilDupline?:
+        ((addr: number, value: number, unitID: number, cb: FCallback) => void) |
+        ((addr: number, value: number, unitID: number) => Promise<void>) |
+        ((addr: number, value: number, unitID: number) => void)
 }
 
 interface IServerOptions {

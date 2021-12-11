@@ -764,6 +764,56 @@ ModbusRTU.prototype.writeFC5 = function(address, dataAddress, state, next) {
     _writeBufferToPort.call(this, buf, this._port._transactionIdWrite);
 };
 
+
+
+/**
+ * Write a Modbus "Force Single Coil" (FC=05) to serial port.
+ * Dupline version, able to force data (not 0xff00 or 0x0000)
+ *
+ * @param {number} address the slave unit address.
+ * @param {number} dataAddress the Data Address of the coil.
+ * @param {number} data Hex data to write (0x0001)
+ * @param {Function} next the function to call next.
+ */
+ModbusRTU.prototype.writeFC5Dupline = function(address, dataAddress, data, next) {
+    // check port is actually open before attempting write
+    if (this.isOpen !== true) {
+        if (next) next(new PortNotOpenError());
+        return;
+    }
+
+    // sanity check
+    if (typeof address === "undefined" || typeof dataAddress === "undefined") {
+        if (next) next(new BadAddressError());
+        return;
+    }
+
+    let code = 5;
+
+    // set state variables
+    this._transactions[this._port._transactionIdWrite] = {
+        nextAddress: address,
+        nextCode: code,
+        nextLength: 8,
+        next: next
+    };
+
+    var codeLength = 6;
+    var buf = Buffer.alloc(codeLength + 2); // add 2 crc bytes
+
+    buf.writeUInt8(address, 0);
+    buf.writeUInt8(code, 1);
+    buf.writeUInt16BE(dataAddress, 2);
+    buf.writeUInt16BE(data, 4);
+
+
+    // add crc bytes to buffer
+    buf.writeUInt16LE(crc16(buf.slice(0, -2)), codeLength);
+
+    // write buffer to serial port
+    _writeBufferToPort.call(this, buf, this._port._transactionIdWrite);
+};
+
 /**
  * Write a Modbus "Preset Single Register " (FC=6) to serial port.
  *

@@ -1,14 +1,14 @@
 {
-  "name": "modbus-serial",
-  "version": "8.0.5",
-  "description": "A pure JavaScript implemetation of MODBUS-RTU (Serial and TCP) for NodeJS.",
+  "name": "modbus-serial-dupline",
+  "version": "1.0.0",
+  "description": "A pure JavaScript implemetation of MODBUS-RTU (Serial and TCP) for NodeJS. Hacked version for Dupline protocol support.",
   "main": "index.js",
   "scripts": {
     "test": "mocha --recursive"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yaacov/node-modbus-serial.git"
+    "url": "git+https://github.com/runnane/node-modbus-serial.git"
   },
   "keywords": [
     "modbus",
@@ -16,14 +16,15 @@
     "serial",
     "port",
     "com",
-    "arduino"
+    "arduino",
+    "dupline"
   ],
   "author": "Yaacov Zamir <kobi.zamir@gmail.com>",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/yaacov/node-modbus-serial/issues"
+    "url": "https://github.com/runnane/node-modbus-serial/issues"
   },
-  "homepage": "https://github.com/yaacov/node-modbus-serial#readme",
+  "homepage": "https://github.com/runnane/node-modbus-serial#readme",
   "devDependencies": {
     "chai": "^4.2.0",
     "eslint": "^6.5.1",
