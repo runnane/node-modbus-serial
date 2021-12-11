@@ -78,6 +78,7 @@ var addPromiseAPI = function(Modbus) {
     cl.readHoldingRegisters = _convert(cl.writeFC3);
     cl.readInputRegisters = _convert(cl.writeFC4);
     cl.writeCoil = _convert(cl.writeFC5);
+    cl.writeCoilDupline = _convert(cl.writeFC5Dupline);
     cl.writeRegister = _convert(cl.writeFC6);
     cl.writeCoils = _convert(cl.writeFC15);
     cl.writeRegisters = _convert(cl.writeFC16);
