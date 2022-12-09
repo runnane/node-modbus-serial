@@ -1,5 +1,5 @@
 {
-  "name": "modbus-serial",
+  "name": "@runnane/modbus-serial-dupline",
   "version": "0.0.6",
   "description": "A pure JavaScript implemetation of MODBUS-RTU (Serial and TCP) for NodeJS. Hacked version for Dupline protocol support.",
   "main": "index.js",
@@ -19,7 +19,7 @@
     "arduino",
     "dupline"
   ],
-  "author": "Yaacov Zamir <kobi.zamir@gmail.com>",
+  "author": "Runnane <jon@runnane.no>",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/runnane/node-modbus-serial/issues"
