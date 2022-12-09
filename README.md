@@ -1,4 +1,4 @@
-# modbus-serial-dupline
+# @runnane/modbus-serial-dupline"
 
 **Warning - this is a dupline version of modbus-serial. Not quality checked, so please do not use in production.**
 
