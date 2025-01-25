@@ -1,24 +1,28 @@
 /* eslint-disable no-console, spaced-comment */
 
 // create an empty modbus client
-//let ModbusRTU = require("modbus-serial");
 const ModbusRTU = require("../index");
 const client = new ModbusRTU();
 
-const networkErrors = ["ESOCKETTIMEDOUT", "ETIMEDOUT", "ECONNRESET", "ECONNREFUSED", "EHOSTUNREACH"];
-
 // open connection to a serial port
-//client.connectRTUBuffered("/dev/ttyUSB0", { hupcl: false, dsrdtr: false })
-client.connectTCP("127.0.0.1", { port: 8502 })
+client.connectRTU(
+    "/tmp/ptyp0",
+    {
+        baudRate: 9600,
+        debug: true,
+        enron: true,
+        enronTables: {
+            booleanRange: [1001, 1999],
+            shortRange: [3001, 3999],
+            longRange: [5001, 5999],
+            floatRange: [7001, 7999]
+        }
+    }
+)
     .then(setClient)
     .then(function() {
         console.log("Connected"); })
     .catch(function(e) {
-        if(e.errno) {
-            if(networkErrors.includes(e.errno)) {
-                console.log("we have to reconnect");
-            }
-        }
         console.log(e.message); });
 
 function setClient() {
@@ -28,21 +32,43 @@ function setClient() {
     client.setTimeout(1000);
 
     // run program
-    readRegisters();
+    writeRegisters();
+}
+
+function writeRegisters() {
+    // write to register 5001
+    client.writeRegisterEnron(5001, 1234567890)
+        .then(function(d) {
+            console.log("Write:", d);
+        })
+        .catch(function(e) {
+            console.log(e.message); })
+        .then(readRegisters);
 }
 
 function readRegisters() {
-    // read the 4 registers starting at address 5
-    client.readHoldingRegisters(5, 4)
+    // read the 1 registers starting at address 5001
+    client.readRegistersEnron(5001, 1)
         .then(function(d) {
             console.log("Receive:", d.data); })
+        .catch(function(e) {
+            console.log(e.message); })
+        .then(writeCoils);
+}
+
+function writeCoils() {
+    // write true to coil #1
+    client.writeCoil(1, true)
+        .then(function(d) {
+            console.log("Write:", d);
+        })
         .catch(function(e) {
             console.log(e.message); })
         .then(readCoils);
 }
 
 function readCoils() {
-    // read the 4 registers starting at address 5
+    // read the 20 coils
     client.readCoils(1, 20)
         .then(function(d) {
             console.log("Receive:", d.data); })

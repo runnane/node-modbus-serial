@@ -16,15 +16,17 @@
  */
 const events = require("events");
 const EventEmitter = events.EventEmitter || events;
-const net = require("net");
 const modbusSerialDebug = require("debug")("modbus-serial");
+const { SerialPort } = require("serialport");
+const ServerSerialPipeHandler = require("./serverserial_pipe_handler");
 
-const HOST = "127.0.0.1";
+const PORT = "/dev/tty";
+const BAUDRATE = 9600;
+
 const UNIT_ID = 255; // listen to all adresses
-const MODBUS_PORT = 502;
 
-// Not really its official length, but we parse UnitID as part of PDU
-const MBAP_LEN = 6;
+const ADDR_LEN = 1;
+const MIN_LEN = 6;
 
 /* Get Handlers
  */
@@ -117,15 +119,13 @@ function _callbackFactory(unitID, functionCode, sockWriter) {
  * @param {Buffer} requestBuffer - request Buffer from client
  * @param {object} vector - vector of functions for read and write
  * @param {function} callback - callback to be invoked passing {Buffer} response
- * @param {int} serverUnitID - the server's unitID
- * @param {function} sockWriter - write buffer (or error) to tcp socket
  * @param {object} options - the options object
  * @returns undefined
  * @private
  */
 function _parseModbusBuffer(requestBuffer, vector, serverUnitID, sockWriter, options) {
     // Check requestBuffer length
-    if (!requestBuffer || requestBuffer.length < MBAP_LEN) {
+    if (!requestBuffer || requestBuffer.length < MIN_LEN) {
         modbusSerialDebug("wrong size of request Buffer " + requestBuffer.length);
         return;
     }
@@ -155,7 +155,7 @@ function _parseModbusBuffer(requestBuffer, vector, serverUnitID, sockWriter, opt
             handlers.readCoilsOrInputDiscretes(requestBuffer, vector, unitID, cb, functionCode);
             break;
         case 3:
-            if (options.enron) {
+            if (options && options.enron) {
                 handlers.readMultipleRegistersEnron(requestBuffer, vector, unitID, options.enronTables, cb);
             } else {
                 handlers.readMultipleRegisters(requestBuffer, vector, unitID, cb);
@@ -168,7 +168,7 @@ function _parseModbusBuffer(requestBuffer, vector, serverUnitID, sockWriter, opt
             handlers.writeCoil(requestBuffer, vector, unitID, cb);
             break;
         case 6:
-            if (options.enron) {
+            if (options && options.enron) {
                 handlers.writeSingleRegisterEnron(requestBuffer, vector, unitID, options.enronTables, cb);
             } else {
                 handlers.writeSingleRegister(requestBuffer, vector, unitID, cb);
@@ -179,6 +179,9 @@ function _parseModbusBuffer(requestBuffer, vector, serverUnitID, sockWriter, opt
             break;
         case 16:
             handlers.writeMultipleRegisters(requestBuffer, vector, unitID, cb);
+            break;
+        case 17:
+            handlers.reportServerID(requestBuffer, vector, unitID, cb);
             break;
         case 43:
             handlers.handleMEI(requestBuffer, vector, unitID, cb);
@@ -201,30 +204,47 @@ function _parseModbusBuffer(requestBuffer, vector, serverUnitID, sockWriter, opt
     }
 }
 
-class ServerTCP extends EventEmitter {
+class ServerSerial extends EventEmitter {
     /**
-     * Class making ModbusTCP server.
+     * Class making ModbusRTU server.
      *
      * @param vector - vector of server functions (see examples/server.js)
      * @param options - server options (host (IP), port, debug (true/false), unitID, enron? (true/false), enronTables? (object))
+     * @param serialportOptions - additional parameters for serialport options
      * @constructor
      */
-    constructor(vector, options) {
+    constructor(vector, options, serialportOptions) {
         super();
 
         const modbus = this;
         options = options || {};
 
-        // create a tcp server
-        modbus._server = net.createServer();
-        modbus._server.on("error", function(error) {
-            modbus.emit("serverError", error);
-        });
-        modbus._server.listen({
-            port: options.port || MODBUS_PORT,
-            host: options.host || HOST
-        }, function() {
-            modbus.emit("initialized");
+        const optionsWithBinding = {
+            path: options.path || options.port || PORT,
+            baudRate: options.baudRate || options.baudrate || BAUDRATE,
+            debug: options.debug || false,
+            unitID: options.unitID || 255
+        };
+
+        const optionsWithSerialPortTimeoutParser = {
+            maxBufferSize: options.maxBufferSize || 65536,
+            interval: options.interval || 30
+        };
+
+        if (options.binding) optionsWithBinding.binding = options.binding;
+
+        // Assign extra parameters in serialport
+        const optionsWithBindingandSerialport = Object.assign({}, serialportOptions, optionsWithBinding);
+
+        // create a serial server
+        modbus._serverPath = new SerialPort(optionsWithBindingandSerialport, options.openCallback);
+
+        // create a serial server with a timeout parser
+        modbus._server = modbus._serverPath.pipe(new ServerSerialPipeHandler(optionsWithSerialPortTimeoutParser));
+
+        // Open errors will be emitted as an error event
+        modbus._server.on("error", function(err) {
+            console.log("Error: ", err.message);
         });
 
         // create a server unit id
@@ -233,92 +253,86 @@ class ServerTCP extends EventEmitter {
         // remember open sockets
         modbus.socks = new Map();
 
-        modbus._server.on("connection", function(sock) {
-            let recvBuffer = Buffer.from([]);
-            modbus.socks.set(sock, 0);
+        modbus._serverPath.on("open", function() {
+            modbus.socks.set(modbus._server, 0);
 
             modbusSerialDebug({
-                action: "connected",
-                address: sock.address(),
-                remoteAddress: sock.remoteAddress,
-                localPort: sock.localPort
+                action: "connected"
+                // address: sock.address(),
+                // remoteAddress: sock.remoteAddress,
+                // localPort: sock.localPort
             });
 
-            sock.once("close", function() {
+            modbus._server.on("close", function() {
                 modbusSerialDebug({
                     action: "closed"
                 });
-                modbus.socks.delete(sock);
+                modbus.socks.delete(modbus._server);
             });
 
-            sock.on("data", function(data) {
-                modbusSerialDebug({ action: "socket data", data: data });
-                recvBuffer = Buffer.concat([recvBuffer, data], recvBuffer.length + data.length);
-
-                while(recvBuffer.length > MBAP_LEN) {
-                    const transactionsId = recvBuffer.readUInt16BE(0);
-                    const pduLen = recvBuffer.readUInt16BE(4);
-
-                    // Check the presence of the full request (MBAP + PDU)
-                    if(recvBuffer.length - MBAP_LEN < pduLen)
-                        break;
-
-                    // remove mbap and add crc16
-                    const requestBuffer = Buffer.alloc(pduLen + 2);
-                    recvBuffer.copy(requestBuffer, 0, MBAP_LEN, MBAP_LEN + pduLen);
-
-                    // Move receive buffer on
-                    recvBuffer = recvBuffer.slice(MBAP_LEN + pduLen);
-
-                    const crc = crc16(requestBuffer.slice(0, -2));
-                    requestBuffer.writeUInt16LE(crc, requestBuffer.length - 2);
-
-                    modbusSerialDebug({ action: "receive", data: requestBuffer, requestBufferLength: requestBuffer.length });
-                    modbusSerialDebug(JSON.stringify({ action: "receive", data: requestBuffer }));
-
-                    const sockWriter = function(err, responseBuffer) {
-                        if (err) {
-                            modbus.emit("error", err);
-                            return;
-                        }
-
-                        // send data back
-                        if (responseBuffer) {
-                            // remove crc and add mbap
-                            const outTcp = Buffer.alloc(responseBuffer.length + 6 - 2);
-                            outTcp.writeUInt16BE(transactionsId, 0);
-                            outTcp.writeUInt16BE(0, 2);
-                            outTcp.writeUInt16BE(responseBuffer.length - 2, 4);
-                            responseBuffer.copy(outTcp, 6);
-
-                            modbusSerialDebug({ action: "send", data: responseBuffer });
-                            modbusSerialDebug(JSON.stringify({ action: "send string", data: responseBuffer }));
-
-                            // write to port
-                            sock.write(outTcp);
-                        }
-                    };
-
-                    // parse the modbusRTU buffer
-                    setTimeout(
-                        _parseModbusBuffer.bind(this,
-                            requestBuffer,
-                            vector,
-                            serverUnitID,
-                            sockWriter,
-                            options
-                        ),
-                        0
-                    );
-                }
-            });
-
-            sock.on("error", function(err) {
-                modbusSerialDebug(JSON.stringify({ action: "socket error", data: err }));
-
-                modbus.emit("socketError", err);
-            });
+            modbus.emit("initialized");
         });
+
+        modbus._server.on("data", function(data) {
+            let recvBuffer = Buffer.from([]);
+
+            modbusSerialDebug({ action: "socket data", data: data });
+            recvBuffer = Buffer.concat([recvBuffer, data], recvBuffer.length + data.length);
+
+            while (recvBuffer.length > ADDR_LEN) {
+                const requestBuffer = Buffer.alloc(recvBuffer.length);
+                recvBuffer.copy(requestBuffer, 0, 0, recvBuffer.length);
+
+                // Move receive buffer on
+                recvBuffer = recvBuffer.slice(recvBuffer.length);
+
+                const crc = crc16(requestBuffer.slice(0, -2));
+                requestBuffer.writeUInt16LE(crc, requestBuffer.length - 2);
+
+                modbusSerialDebug({ action: "receive", data: requestBuffer, requestBufferLength: requestBuffer.length });
+                modbusSerialDebug(JSON.stringify({ action: "receive", data: requestBuffer }));
+
+                const sockWriter = function(err, responseBuffer) {
+                    if (err) {
+                        console.error(err, responseBuffer);
+                        modbus.emit("error", err);
+                        return;
+                    }
+
+                    // send data back
+                    if (responseBuffer) {
+                        modbusSerialDebug({ action: "send", data: responseBuffer });
+                        modbusSerialDebug(JSON.stringify({ action: "send string", data: responseBuffer }));
+
+                        // write to port
+                        (options.portResponse || modbus._serverPath).write(responseBuffer);
+                    }
+                };
+
+                // parse the modbusRTU buffer
+                setTimeout(
+                    _parseModbusBuffer.bind(this,
+                        requestBuffer,
+                        vector,
+                        serverUnitID,
+                        sockWriter,
+                        options
+                    ),
+                    0
+                );
+            }
+        });
+
+        modbus._server.on("error", function(err) {
+            modbusSerialDebug(JSON.stringify({ action: "socket error", data: err }));
+
+            modbus.emit("socketError", err);
+        });
+
+    }
+
+    getPort() {
+        return this._serverPath;
     }
 
     /**
@@ -332,7 +346,7 @@ class ServerTCP extends EventEmitter {
         // close the net port if exist
         if (modbus._server) {
             modbus._server.removeAllListeners("data");
-            modbus._server.close(callback);
+            modbus._serverPath.close(callback);
 
             modbus.socks.forEach(function(e, sock) {
                 sock.destroy();
@@ -346,7 +360,7 @@ class ServerTCP extends EventEmitter {
 }
 
 /**
- * ServerTCP interface export.
- * @type {ServerTCP}
+ * ServerSerial interface export.
+ * @type {ServerSerial}
  */
-module.exports = ServerTCP;
+module.exports = ServerSerial;

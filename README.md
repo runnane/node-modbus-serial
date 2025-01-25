@@ -4,7 +4,7 @@
 
 ----
 
-A pure JavaScript implemetation of MODBUS-RTU (Serial and TCP) for NodeJS.
+A pure JavaScript implementation of MODBUS-RTU (Serial and TCP) for NodeJS.
 
 
 Modbus is a serial communications protocol, first used in 1979.
@@ -92,8 +92,8 @@ This module has not been tested on every single version of NodeJS. For best resu
 ###### Read and Write
 ``` javascript
 // create an empty modbus client
-var ModbusRTU = require("modbus-serial");
-var client = new ModbusRTU();
+const ModbusRTU = require("modbus-serial");
+const client = new ModbusRTU();
 
 // open connection to a serial port
 client.connectRTUBuffered("/dev/ttyUSB0", { baudRate: 9600 }, write);
@@ -141,7 +141,7 @@ const getMetersValue = async (meters) => {
         // if error, handle them here (it should not)
         console.log(e)
     } finally {
-        // after get all data from salve repeate it again
+        // after get all data from slave, repeat it again
         setImmediate(() => {
             getMetersValue(metersIdList);
         })
@@ -173,8 +173,8 @@ getMetersValue(metersIdList);
 ###### Logger Serial
 ``` javascript
 // create an empty modbus client
-var ModbusRTU = require("modbus-serial");
-var client = new ModbusRTU();
+const ModbusRTU = require("modbus-serial");
+const client = new ModbusRTU();
 
 // open connection to a serial port
 client.connectRTUBuffered("/dev/ttyUSB0", { baudRate: 9600 });
@@ -192,8 +192,8 @@ setInterval(function() {
 ###### Logger TCP
 ``` javascript
 // create an empty modbus client
-var ModbusRTU = require("modbus-serial");
-var client = new ModbusRTU();
+const ModbusRTU = require("modbus-serial");
+const client = new ModbusRTU();
 
 // open connection to a tcp line
 client.connectTCP("127.0.0.1", { port: 8502 });
@@ -211,8 +211,8 @@ setInterval(function() {
 ###### Logger UDP
 ``` javascript
 // create an empty modbus client
-var ModbusRTU = require("modbus-serial");
-var client = new ModbusRTU();
+const ModbusRTU = require("modbus-serial");
+const client = new ModbusRTU();
 
 // open connection to a udp line
 client.connectUDP("127.0.0.1", { port: 8502 });
@@ -230,8 +230,8 @@ setInterval(function() {
 ###### ModbusTCP Server
 ``` javascript
 // create an empty modbus client
-var ModbusRTU = require("modbus-serial");
-var vector = {
+const ModbusRTU = require("modbus-serial");
+const vector = {
     getInputRegister: function(addr, unitID) {
         // Synchronous handling
         return addr;
@@ -275,7 +275,7 @@ var vector = {
 
 // set the server to answer for modbus requests
 console.log("ModbusTCP listening on modbus://0.0.0.0:8502");
-var serverTCP = new ModbusRTU.ServerTCP(vector, { host: "0.0.0.0", port: 8502, debug: true, unitID: 1 });
+const serverTCP = new ModbusRTU.ServerTCP(vector, { host: "0.0.0.0", port: 8502, debug: true, unitID: 1 });
 
 serverTCP.on("socketError", function(err){
     // Handle socket error if needed, can be ignored
@@ -286,8 +286,8 @@ serverTCP.on("socketError", function(err){
 ###### Read and Write Modbus ASCII
 ``` javascript
 // create an empty modbus client
-var Modbus = require("modbus-serial");
-var client = new Modbus();
+const Modbus = require("modbus-serial");
+const client = new Modbus();
 
 // open connection to a serial port
 client.connectAsciiSerial(
@@ -314,6 +314,94 @@ function read() {
         .then(console.log);
 }
 ```
+----
+##### "modbusdb" is an elegant wrapper over the Modbus protocol
+
+###### Check modbusdb github repo at https://github.com/yarosdev/modbusdb for more information, feedback is welcome!
+
+Here is an example of using `modbusdb` wrapper over `modbus-serial`:
+
+``` typescript
+import Modbus from 'modbus-serial';
+import { Modbusdb, ModbusSerialDriver, Datamap, createRegisterKey, TypeEnum, ScopeEnum } from "modbusdb";
+
+// create an empty modbus client
+const client = new Modbus();
+
+client.connectTcpRTUBuffered("127.0.0.1", { port: 8502 }, app) // or use any other available connection methods
+
+function app() {
+
+  // First you need to define a schema for a database:
+  // createRegisterKey(UNIT_ADDRESS, MODBUS_TABLE, REGISTER_ADDRESS, BIT_INDEX)
+  const schema = [
+    { key: createRegisterKey(1, ScopeEnum.InternalRegister, 10),    type: TypeEnum.Int16 },
+    { key: createRegisterKey(1, ScopeEnum.InternalRegister, 11),    type: TypeEnum.Int32 },
+    { key: createRegisterKey(1, ScopeEnum.PhysicalRegister, 99),    type: TypeEnum.UInt16 },
+    { key: createRegisterKey(1, ScopeEnum.InternalRegister, 15, 2), type: TypeEnum.Bit },
+  ];
+  
+  // Define unit-scoped config if needed:
+  const units = [
+    {
+      address: 1, // This is unit address
+      forceWriteMany: true, // Use 15(0x0f) and 16(0x10) functions for single register, default: false
+      bigEndian: true, // You can use BigEndian for byte order, default: false
+      swapWords: false, // This is applicable only for multi-registers types such as int32, float etc, default: false
+      requestWithGaps: true, // If you are requesting addresses 10 and 13, allow to send one request to the device, default: true
+      maxRequestSize: 32, // How many registers to be requested in one round-trip with device, default: 1
+    }
+  ];
+  
+  // Let`s create an instance of a database:
+  const db = new Modbusdb({
+    driver: new ModbusSerialDriver(client),
+    datamap: new Datamap(schema, units)
+  });
+
+  // Now we can request three registers:
+  // NOTICE: Modbusdb under the hood will make all needed requests for you in using an optimal plan
+  //         If registers can be requested using a single request, be sure it will
+  db.mget([
+    createRegisterKey(1, ScopeEnum.InternalRegister, 10),
+    createRegisterKey(1, ScopeEnum.InternalRegister, 11),
+    createRegisterKey(1, ScopeEnum.PhysicalRegister, 99)
+  ]).then(result => {
+    console.log('mget', result)
+  })
+
+  // You can store register`s key to be used later:
+  const speedSetPoint = createRegisterKey(1, ScopeEnum.InternalRegister, 10);
+  const workingMode = createRegisterKey(1, ScopeEnum.InternalRegister, 11);
+  
+  // Write values directly into modbus device as easy as possible:
+  // NOTICE: Modbusdb under the hood will make all needed requests for you
+  //         Write operations have higher priority over the read operations
+  db.mset([
+    [speedSetPoint, 60],
+    [workingMode, 10],
+  ]).then(result => {
+    console.log('mset', result)
+  })
+}
+```
+Enums:
+```
+ScopeEnum: (Modbus Table)
+  1 = PhysicalState = Discrete Input
+  2 = InternalState = Coil Status
+  3 = PhysicalRegister = Input Register
+  4 = InternalRegister = Holding Register
+  
+TypeEnum: (Available Data Types)
+  1 = Bit,
+  4 = Int16,
+  5 = UInt16,
+  6 = Int32,
+  7 = UInt32,
+  8 = Float
+```
+
 ----
 
 
