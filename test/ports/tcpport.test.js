@@ -1,18 +1,18 @@
 "use strict";
 /* eslint-disable no-undef */
 
-var expect = require("chai").expect;
-var mockery = require("mockery");
+const expect = require("chai").expect;
+const mockery = require("mockery");
 
-describe("Modbus TCP port", function() {
-    var port;
+describe("Modbus TCP port methods", function() {
+    let port;
 
     before(function() {
-        var mock = require("./../mocks/netMock");
+        const mock = require("./../mocks/netMock");
         mockery.resetCache();
         mockery.enable({ warnOnReplace: false, useCleanCache: true, warnOnUnregistered: false });
         mockery.registerMock("net", mock);
-        var TcpPort = require("./../../ports/tcpport");
+        const TcpPort = require("./../../ports/tcpport");
         port = new TcpPort("127.0.0.1", { port: 9999 });
     });
 
@@ -22,6 +22,62 @@ describe("Modbus TCP port", function() {
 
     afterEach(function() {
         port.close();
+    });
+
+    describe("Modbus TCP port constructor", function() {
+        const TcpPort = require("./../../ports/tcpport");
+        it("with ip as string", function() {
+            const port = new TcpPort("localhost");
+
+            expect(port).to.be.an.instanceOf(TcpPort);
+            expect(port.connectOptions.host).to.equal("localhost");
+            expect(port.connectOptions.port).to.equal(502);
+        });
+
+        it("with ip as object", function() {
+            const port = new TcpPort({ ip: "localhost" });
+
+            expect(port).to.be.an.instanceOf(TcpPort);
+            expect(port.connectOptions.host).to.equal("localhost");
+            expect(port.connectOptions.port).to.equal(502);
+        });
+
+        it("with ip as object and port as number", function() {
+            const port = new TcpPort({ ip: "localhost", port: 9999 });
+
+            expect(port).to.be.an.instanceOf(TcpPort);
+            expect(port.connectOptions.host).to.equal("localhost");
+            expect(port.connectOptions.port).to.equal(9999);
+        });
+
+        it("with ip as string and options as object", function() {
+            const port = new TcpPort("localhost", { port: 9999 });
+
+            expect(port).to.be.an.instanceOf(TcpPort);
+            expect(port.connectOptions.host).to.equal("localhost");
+            expect(port.connectOptions.port).to.equal(9999);
+        });
+
+        it("with socket creation options", function() {
+            const controller = new AbortController();
+            const port = new TcpPort("localhost", { port: 9999,
+                socketOpts: {
+                    allowHalfOpen: true,
+                    readable: true,
+                    writable: true,
+                    signal: controller.signal
+                } });
+
+            expect(port).to.be.an.instanceOf(TcpPort);
+            expect(port.connectOptions.host).to.equal("localhost");
+            expect(port.connectOptions.port).to.equal(9999);
+            expect(port.socketOpts).to.deep.equal({
+                allowHalfOpen: true,
+                readable: true,
+                writable: true,
+                signal: controller.signal
+            });
+        });
     });
 
     describe("#isOpen", function() {
@@ -66,10 +122,11 @@ describe("Modbus TCP port", function() {
             });
             port.open(function() {
                 port.write(Buffer.from("1103006B00037687", "hex"));
-
-                if (port._client._data.equals(Buffer.from("0001000000061103006B0003", "hex"))) {
-                    port._client.receive(Buffer.from("000100000006110366778899", "hex"));
-                }
+                port._writeCompleted.then(function() {
+                    if (port._client._data.equals(Buffer.from("0001000000061103006B0003", "hex"))) {
+                        port._client.receive(Buffer.from("000100000006110366778899", "hex"));
+                    }
+                });
             });
         });
 
@@ -80,18 +137,22 @@ describe("Modbus TCP port", function() {
             });
             port.open(function() {
                 port.write(Buffer.from("1103006B00037687", "hex"));
-
-                if (port._client._data.equals(Buffer.from("0002000000061103006B0003", "hex"))) {
-                    port._client.receive(Buffer.from("000200000003118304", "hex"));
-                }
+                port._writeCompleted.then(function() {
+                    if (port._client._data.equals(Buffer.from("0002000000061103006B0003", "hex"))) {
+                        port._client.receive(Buffer.from("000200000003118304", "hex"));
+                    }
+                });
             });
         });
     });
 
     describe("#write", function() {
-        it("should write a valid TCP message to the port", function() {
+        it("should write a valid TCP message to the port", function(done) {
             port.write(Buffer.from("1103006B00037687", "hex"));
-            expect(port._client._data.toString("hex")).to.equal("0003000000061103006b0003");
+            port._writeCompleted.then(function() {
+                expect(port._client._data.toString("hex")).to.equal("0003000000061103006b0003");
+                done();
+            });
         });
     });
 

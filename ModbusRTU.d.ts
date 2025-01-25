@@ -1,8 +1,16 @@
+import { Socket, SocketConstructorOpts, TcpSocketConnectOpts } from 'net';
+import { TestPort } from "./TestPort";
+import { PortInfo } from '@serialport/bindings-cpp';
+
 export class ModbusRTU {
   constructor(port?: any);
+  static TestPort: typeof TestPort
 
-  open(callback: Function): void;
-  close(callback: Function): void;
+  static getPorts(): Promise<PortInfo[]>
+
+  open(callback?: Function): void;
+  close(callback?: Function): void;
+  destroy(callback?: Function): void;
 
   writeFC1(address: number, dataAddress: number, length: number, next: NodeStyleCallback<ReadCoilResult>): void;
   writeFC2(address: number, dataAddress: number, length: number, next: NodeStyleCallback<ReadCoilResult>): void;
@@ -32,10 +40,14 @@ export class ModbusRTU {
   connectRTUBuffered(path: string, options: SerialPortOptions): Promise<void>;
   connectAsciiSerial(path: string, options: SerialPortOptions, next: Function): void;
   connectAsciiSerial(path: string, options: SerialPortOptions): Promise<void>;
-  linkTCP(socket: string, options: TcpPortOptions, next: Function): void;
-  linkTcpRTUBuffered(socket: string, options: TcpRTUPortOptions, next: Function): void;
-  linkTelnet(socket: string, options: TelnetPortOptions, next: Function): void;
-  connectRTUSocket(socket: string, next: Function): void;
+  linkTCP(socket: Socket, options: TcpPortOptions, next: Function): void;
+  linkTCP(socket: Socket, options: TcpPortOptions): Promise<void>;
+  linkTcpRTUBuffered(socket: Socket, options: TcpRTUPortOptions, next: Function): void;
+  linkTcpRTUBuffered(socket: Socket, options: TcpRTUPortOptions): Promise<void>;
+  linkTelnet(socket: Socket, options: TelnetPortOptions, next: Function): void;
+  linkTelnet(socket: Socket, options: TelnetPortOptions): Promise<void>;
+  connectRTUSocket(socket: Socket, next: Function): void;
+  connectRTUSocket(socket: Socket): Promise<void>;
 
   // Promise API
   setID(id: number): void;
@@ -46,12 +58,19 @@ export class ModbusRTU {
   readCoils(dataAddress: number, length: number): Promise<ReadCoilResult>;
   readDiscreteInputs(dataAddress: number, length: number): Promise<ReadCoilResult>;
   readHoldingRegisters(dataAddress: number, length: number): Promise<ReadRegisterResult>;
+  readRegistersEnron(dataAddress: number, length: number): Promise<ReadRegisterResult>;
   readInputRegisters(dataAddress: number, length: number): Promise<ReadRegisterResult>;
   writeCoil(dataAddress: number, state: boolean): Promise<WriteCoilResult>;
   writeCoilDupline(dataAddress: number, value: number): Promise<WriteCoilDuplineResult>;
   writeCoils(dataAddress: number, states: Array<boolean>): Promise<WriteMultipleResult>;
   writeRegister(dataAddress: number, value: number): Promise<WriteRegisterResult>;
+  writeRegisterEnron(dataAddress: number, value: number): Promise<WriteRegisterResult>;
   writeRegisters(dataAddress: number, values: Array<number> | Buffer): Promise<WriteMultipleResult>; // 16
+
+  on(event: 'close', listener: () => unknown): this;
+  on(event: 'error', listener: (error: unknown) => unknown): this;
+  readDeviceIdentification(deviceIdCode: number, objectId: number): Promise<ReadDeviceIdentificationResult>;
+  reportServerID(deviceIdCode: number): Promise<ReportServerIDResult>;
 
   isOpen: boolean;
 }
@@ -88,6 +107,17 @@ export interface WriteMultipleResult {
   length: number;
 }
 
+export interface ReadDeviceIdentificationResult {
+  data: string[];
+  conformityLevel: number;
+}
+
+export interface ReportServerIDResult {
+  serverId: number;
+  running: boolean;
+  additionalData: Buffer;
+}
+
 export interface SerialPortOptions {
   baudRate?: number;
   dataBits?: number;
@@ -108,11 +138,14 @@ export interface SerialPortUnixPlatformOptions {
   vtime?: number;
 }
 
-export interface TcpPortOptions {
-  port?: number;
+export interface TcpPortOptions extends TcpSocketConnectOpts {
+  port: number;
   localAddress?: string;
   family?: number;
   ip?: string;
+  timeout?: number;
+  socket?: Socket;
+  socketOpts?: SocketConstructorOpts;
 }
 
 export interface UdpPortOptions {
