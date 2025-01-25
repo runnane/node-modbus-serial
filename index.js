@@ -892,7 +892,7 @@ class ModbusRTU extends EventEmitter {
  * @param {number} data Hex data to write (0x0001)
  * @param {Function} next the function to call next.
  */
-ModbusRTU.prototype.writeFC5Dupline = function(address, dataAddress, data, next) {
+writeFC5Dupline = function(address, dataAddress, data, next) {
     // check port is actually open before attempting write
     if (this.isOpen !== true) {
         if (next) next(new PortNotOpenError());
